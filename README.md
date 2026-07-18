@@ -1,194 +1,382 @@
 # Bluetooth Threat Detection Sensor
 
-## Overview
-
-The Bluetooth Threat Detection Sensor is a real-time Bluetooth Intrusion Detection System (IDS) developed in Rust. The application continuously monitors Bluetooth traffic using Linux's **btmon** utility, analyzes HCI events, detects suspicious Bluetooth activities, logs detected threats, generates reports, and displays a live monitoring dashboard.
-
-The project is designed to demonstrate how Bluetooth communication can be monitored to identify potential security threats such as advertising floods, repeated authentication failures, device discovery floods, and pairing attacks.
+A **real-time Bluetooth Intrusion Detection and Response System (IDRS)** developed in **Rust** for monitoring Bluetooth traffic, detecting suspicious behavior using signature-based detection, generating Security Operations Center (SOC) incidents, and supporting controlled device containment.
 
 ---
 
-# Objectives
+## Overview
 
-- Monitor Bluetooth HCI packets in real time.
-- Parse Bluetooth events from btmon.
-- Detect suspicious Bluetooth attack patterns.
-- Display live monitoring statistics.
-- Store detected threats in CSV and JSON formats.
-- Generate reports for forensic analysis.
+The Bluetooth Threat Detection Sensor continuously monitors Bluetooth activity using **BlueZ btmon**, converts raw HCI events into structured security events, detects malicious behavioral patterns, generates alerts, creates SOC incidents, and prepares behavioral datasets for future Machine Learning-based anomaly detection.
+
+The project follows a security-first workflow:
+
+```
+Bluetooth Traffic
+        │
+        ▼
+     BlueZ btmon
+        │
+        ▼
+ Packet Parsing Engine
+        │
+        ▼
+ Bluetooth Events
+        │
+        ▼
+ Signature Detection Engine
+        │
+        ▼
+ Security Alert
+        │
+        ▼
+ SOC Incident Manager
+        │
+        ▼
+SOC Review & Validation
+        │
+        ▼
+ Prevention Engine
+        │
+        ▼
+ Disconnect / Block
+```
 
 ---
 
 # Features
 
-- Real-time Bluetooth packet monitoring
-- Live dashboard
-- Bluetooth packet parser
-- Packet builder
-- Event queue management
-- Advertising Flood detection
-- Authentication Failure detection
-- Device Discovery Flood detection
-- Pairing Request Flood detection
-- CSV logging
-- JSON logging
-- Threat report generation
-- Session statistics
-- Colorized terminal dashboard
+### Real-Time Bluetooth Monitoring
+
+- Live Bluetooth packet monitoring
+- HCI event parsing
+- Bluetooth device discovery
+- RSSI monitoring
+- Connection tracking
+- Disconnection tracking
+- Authentication monitoring
+- Pairing monitoring
 
 ---
 
-# Technologies Used
+### Signature-Based Threat Detection
 
-- Rust
-- Tokio
-- btmon
-- Regex
-- Chrono
-- Colored
-- CSV
-- JSON
+Implemented security signatures include:
+
+- Advertising Flood
+- Repeated Connection Failure
+- Authentication Brute Force
+- Pairing Request Flood
+- Suspicious Connection Cycling
+- Reconnection Flood
+- Encryption Downgrade
+- HCI Error Spike
+
+Each signature supports:
+
+- Configurable thresholds
+- Sliding time windows
+- Per-device detection
+- Alert suppression
+- False-positive reduction
+
+---
+
+### Security Operations Center (SOC)
+
+Every detected threat becomes a SOC incident.
+
+Supported incident states:
+
+- Pending SOC Review
+- Approved
+- Monitoring
+- Rejected
+- False Positive
+
+This separates **detection** from **active response**, reducing unnecessary device blocking.
+
+---
+
+### Prevention Engine
+
+Active containment occurs **only after SOC approval**.
+
+Current containment actions include:
+
+- Bluetooth disconnect
+- Bluetooth block
+
+Safety mechanisms:
+
+- Authorized test device validation
+- Policy-based containment
+- SOC approval required
+
+---
+
+### Live Dashboard
+
+The real-time dashboard displays:
+
+- Monitoring status
+- Monitoring time
+- Packets captured
+- Connected devices
+- Connection sessions
+- Disconnections
+- Devices discovered
+- RSSI updates
+- Authentication failures
+- Pairing requests
+- Threat count
+- Latest detected threat
+- Latest SOC incident
+- SOC status
+
+---
+
+### Logging
+
+The project automatically generates:
+
+- CSV threat logs
+- JSON security logs
+- Threat reports
+- Session statistics
+
+---
+
+### Machine Learning Dataset Generator
+
+The sensor collects behavioral features every **30 seconds** for each Bluetooth device.
+
+Current features include:
+
+- Connections
+- Disconnections
+- Connection failures
+- Authentication failures
+- Pairing requests
+- Advertising reports
+- RSSI updates
+- Average RSSI
+- RSSI range
+- Total events
+- Connection/Disconnection ratio
+
+These datasets are intended for future ML-based anomaly detection.
 
 ---
 
 # Project Structure
 
 ```
-sensor/
-
-├── Cargo.toml
-├── src/
+bluetooth-threat-detection-sensor
 │
-├── main.rs
-├── parser/
-├── detector/
-├── dashboard/
-├── logger/
-├── json_logger/
-├── reports/
-├── statistics/
-├── models/
-├── event_queue/
-├── signatures/
-└── patterns/
+├── src
+│   ├── dashboard
+│   ├── detector
+│   ├── event_queue
+│   ├── json_logger
+│   ├── logger
+│   ├── ml
+│   ├── models
+│   ├── parser
+│   ├── patterns
+│   ├── prevention
+│   ├── reports
+│   ├── signatures
+│   ├── simulator
+│   ├── soc
+│   ├── statistics
+│   └── main.rs
+│
+├── Cargo.toml
+├── Cargo.lock
+├── Architecture.txt
+├── LICENSE
+└── README.md
 ```
 
 ---
 
-# Working
+# Technology Stack
 
-1. The sensor launches btmon.
-2. Bluetooth packets are captured.
-3. Packet Builder combines packet lines.
-4. Parser extracts Bluetooth events.
-5. Events are stored inside an Event Queue.
-6. Pattern Detector analyzes recent events.
-7. Suspicious activities are detected.
-8. Dashboard updates in real time.
-9. Threats are logged into CSV and JSON files.
-10. Reports are generated.
+Programming Language
 
----
+- Rust
 
-# Threats Detected
-
-- Advertising Flood
-- Authentication Failure
-- Device Discovery Flood
-- Pairing Request Flood
-- Rapid Bluetooth Activity
-- RSSI Anomaly (Framework)
-
----
-
-# Dashboard
-
-The dashboard displays:
-
-- Packets Captured
-- Advertising Reports
-- Devices Found
-- Connections
-- Disconnections
-- Authentication Failures
-- Pairing Requests
-- RSSI Updates
-- Threat Count
-- Latest Threat
-- Monitoring Time
-
----
-
-# Output Files
-
-The application generates:
-
-- threats.csv
-- threats.json
-- reports.txt
-
----
-
-# Requirements
+Operating System
 
 - Kali Linux
-- Rust
-- Cargo
-- Bluetooth Adapter
+- Linux
+
+Bluetooth Stack
+
+- BlueZ
 - btmon
+- bluetoothctl
+
+Runtime
+
+- Tokio
+
+Logging
+
+- CSV
+- JSON
+
+Security
+
+- Signature-Based Detection
+- SOC Workflow
+- Controlled Prevention
+
+Future AI
+
+- Behavioral Feature Engineering
+- Machine Learning Dataset Generation
 
 ---
 
-# Build
+# Detection Workflow
 
 ```
+Bluetooth Device
+       │
+       ▼
+BlueZ btmon
+       │
+       ▼
+Packet Builder
+       │
+       ▼
+Bluetooth Events
+       │
+       ▼
+Event Queue
+       │
+       ▼
+Pattern Detector
+       │
+       ▼
+Security Alert
+       │
+       ▼
+SOC Incident
+       │
+       ▼
+SOC Validation
+       │
+       ▼
+Prevention Engine
+```
+
+---
+
+# Machine Learning Pipeline
+
+```
+Bluetooth Traffic
+        │
+        ▼
+Feature Extraction
+        │
+        ▼
+Behavior Dataset
+        │
+        ▼
+Model Training
+        │
+        ▼
+Anomaly Detection
+        │
+        ▼
+SOC Incident
+```
+
+---
+
+# Installation
+
+Clone the repository
+
+```bash
+git clone https://github.com/Roopashree1926/bluetooth-threat-detection-sensor.git
+```
+
+Move into the project
+
+```bash
+cd bluetooth-threat-detection-sensor
+```
+
+Build the project
+
+```bash
 cargo build
 ```
 
----
+Run the sensor
 
-# Run
-
-```
-cargo run
+```bash
+sudo cargo run
 ```
 
 ---
 
-# Sample Dashboard
+# Example Dashboard
 
 ```
 ============================================================
         BLUETOOTH THREAT DETECTION SENSOR
 ============================================================
-System Status : RUNNING
+System Status   : RUNNING
 
-Packets Captured : 125
+Packets Captured            : 457
+Currently Connected Devices : 1
+Threats Detected            : 1
 
-Advertising Reports : 48
+Latest Threat:
+Suspicious Connection Cycling
 
-Devices Found : 20
+Latest SOC Incident:
+INC-0001
 
-Threats Detected : 3
-
-Latest Threat : Advertising Flood
+SOC Status:
+APPROVED - DEVICE CONTAINED
 ============================================================
 ```
 
 ---
 
-# Future Enhancements
+# Future Improvements
 
-- Web Dashboard
-- Machine Learning based anomaly detection
-- Email Alerts
-- Mobile Notifications
-- Database Integration
-- Cloud Monitoring
-- SIEM Integration
+- Machine Learning anomaly detection
+- Bluetooth Low Energy attack detection
+- MITRE ATT&CK mapping
+- Web-based SOC dashboard
+- Email notifications
+- SIEM integration
+- Grafana dashboards
+- Real-time visualization
+- Threat intelligence integration
 
 ---
 
 # Author
 
-Project Developed using Rust for Bluetooth Security Monitoring and Threat Detection.
+**Roopashree M**
+
+Cybersecurity | Rust | Network Security | Bluetooth Security | Machine Learning
+
+GitHub:
+https://github.com/Roopashree1926
+
+---
+
+# License
+
+This project is licensed under the **MIT License**.
+
+See the LICENSE file for details.
