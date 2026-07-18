@@ -1,0 +1,628 @@
+============================================================
+       BLUETOOTH THREAT DETECTION SENSOR - ARCHITECTURE
+============================================================
+
+1. PROJECT OVERVIEW
+------------------------------------------------------------
+
+The Bluetooth Threat Detection Sensor is a real-time security
+monitoring system developed in Rust.
+
+The system monitors Bluetooth traffic, converts raw Bluetooth
+activity into structured events, detects suspicious behavioral
+patterns, generates security alerts, creates SOC incidents, and
+supports SOC-controlled containment.
+
+The project also includes an ML data collection pipeline for
+building behavioral datasets for future machine-learning-based
+anomaly detection.
+
+
+2. HIGH-LEVEL ARCHITECTURE
+------------------------------------------------------------
+
+                 Bluetooth Devices
+                        |
+                        v
+                 Linux Bluetooth
+                        |
+                        v
+                      btmon
+                        |
+                        v
+                Raw Bluetooth Data
+                        |
+                        v
+               +------------------+
+               |      Parser      |
+               |  Packet Builder  |
+               +------------------+
+                        |
+                        v
+                 BluetoothEvent
+                        |
+             +----------+----------+
+             |                     |
+             v                     v
+      +-------------+       +------------------+
+      | Event Queue |       | ML Data Collector|
+      +-------------+       +------------------+
+             |                     |
+             v                     v
+      Pattern Detector      30-Second Behavioral
+             |               Feature Windows
+             v                     |
+      Signature Rules              v
+             |              ML Dataset (CSV)
+             v
+      Security Alert
+             |
+             v
+      SOC Incident Manager
+             |
+             v
+      PENDING SOC REVIEW
+             |
+       +-----+------+----------------+
+       |            |                |
+       v            v                v
+    APPROVE       MONITOR          REJECT /
+       |                         FALSE POSITIVE
+       v
+ Prevention Engine
+       |
+       v
+ Authorization + Policy Check
+       |
+       v
+ Disconnect / Block
+ Authorized Test Device
+
+
+3. REAL-TIME MONITORING LAYER
+------------------------------------------------------------
+
+The sensor uses Linux "btmon" to observe Bluetooth controller
+traffic in real time.
+
+btmon
+  |
+  v
+Rust Async Reader
+  |
+  v
+Parser
+  |
+  v
+BluetoothEvent
+
+The application runs continuously and processes Bluetooth
+activity as it occurs.
+
+
+4. PARSER AND PACKET BUILDER
+------------------------------------------------------------
+
+Location:
+
+src/parser/
+
+Responsibilities:
+
+- Read raw btmon output.
+- Group related btmon lines into Bluetooth packets.
+- Extract Bluetooth device MAC addresses.
+- Extract RSSI information.
+- Extract device names where available.
+- Extract connection handles.
+- Extract Bluetooth connection roles.
+- Extract encryption information.
+- Extract encryption key sizes.
+- Extract L2CAP channel identifiers.
+- Extract service UUID information.
+- Extract HCI event information.
+- Convert raw Bluetooth activity into structured events.
+
+
+5. EVENT MODEL
+------------------------------------------------------------
+
+Location:
+
+src/models/
+
+Bluetooth activity is represented using structured event types.
+
+Examples include:
+
+- AdvertisingReport
+- ConnectionComplete
+- DisconnectionComplete
+- ConnectionFailed
+- ConnectionReestablished
+- AuthenticationFailed
+- PairingRequest
+- RSSIUpdate
+- EncryptionDowngrade
+- HCIError
+
+Security alerts and SOC incidents are also represented using
+dedicated data structures.
+
+
+6. EVENT QUEUE
+------------------------------------------------------------
+
+Location:
+
+src/event_queue/
+
+The Event Queue stores recent Bluetooth security events.
+
+Purpose:
+
+- Maintain recent event history.
+- Support time-window-based detection.
+- Allow security rules to examine repeated behavior.
+- Prevent detection from relying on a single isolated event.
+
+Example:
+
+5 suspicious events
+within
+30 seconds
+from
+the same Bluetooth device
+
+can be evaluated as one behavioral pattern.
+
+
+7. SIGNATURE-BASED THREAT DETECTION
+------------------------------------------------------------
+
+Locations:
+
+src/signatures/
+src/detector/
+
+The Pattern Detector evaluates recent Bluetooth events against
+configured security signatures.
+
+Example detection rules include:
+
+- Advertising Flood
+- Repeated Connection Failure
+- Authentication Brute Force
+- Pairing Request Flood
+- Suspicious Connection Cycling
+- Reconnection Flood
+- Encryption Downgrade
+- HCI Error Spike
+
+Detection is performed per device where a valid Bluetooth MAC
+address is available.
+
+Example:
+
+Bluetooth Events
+      |
+      v
+Recent Event Queue
+      |
+      v
+Signature Matching
+      |
+      v
+Threshold + Time Window
+      |
+      v
+Security Alert
+
+
+8. FALSE-POSITIVE-AWARE DETECTION
+------------------------------------------------------------
+
+A Bluetooth device is NOT automatically blocked simply because
+a threshold is reached.
+
+For example, repeated connection or disconnection activity may
+occur because of:
+
+- weak signal
+- user movement
+- battery issues
+- Bluetooth interference
+- legitimate reconnection behavior
+
+Therefore, detection and prevention are separated.
+
+Detection
+    |
+    v
+Security Alert
+    |
+    v
+SOC Validation
+    |
+    v
+Decision
+    |
+    +--> Approve containment
+    |
+    +--> Continue monitoring
+    |
+    +--> Reject
+    |
+    +--> Mark false positive
+
+
+9. SOC INCIDENT MANAGEMENT
+------------------------------------------------------------
+
+Locations:
+
+src/soc/
+src/models/incident.rs
+
+When a security alert is generated, it becomes a SOC incident.
+
+Example:
+
+INC-0001
+
+Each incident contains:
+
+- Incident ID
+- Creation time
+- Threat name
+- Severity
+- Device MAC
+- Evidence/details
+- Incident status
+
+Initial state:
+
+PENDING SOC REVIEW
+
+Possible SOC states include:
+
+- PendingSocReview
+- Approved
+- Rejected
+- Monitoring
+- FalsePositive
+
+
+10. SOC DECISION FLOW
+------------------------------------------------------------
+
+The SOC workflow separates threat detection from active
+containment.
+
+Security Alert
+      |
+      v
+SOC Incident
+      |
+      v
+PENDING SOC REVIEW
+      |
+      +------------------------------+
+      |              |               |
+      v              v               v
+   APPROVE        MONITOR         REJECT
+      |                              |
+      v                              v
+Prevention                     No Containment
+      |
+      v
+Authorized Policy Check
+      |
+      v
+Containment
+
+
+11. PREVENTION ENGINE
+------------------------------------------------------------
+
+Location:
+
+src/prevention/
+
+The Prevention Engine performs controlled containment only
+after SOC approval.
+
+Safety controls include:
+
+1. Prevention must be enabled.
+
+2. Incident status must be Approved.
+
+3. A valid device MAC must exist.
+
+4. The device must match the explicitly authorized test device.
+
+5. The detected threat must match an approved containment
+   policy.
+
+Possible containment operations:
+
+bluetoothctl disconnect <MAC>
+
+followed by:
+
+bluetoothctl block <MAC>
+
+Active containment is restricted to an authorized laboratory
+or test device.
+
+
+12. LIVE DASHBOARD
+------------------------------------------------------------
+
+Location:
+
+src/dashboard/
+
+The terminal dashboard displays real-time sensor information.
+
+Displayed information includes:
+
+- System status
+- Monitoring time
+- Packets captured
+- Advertising reports
+- Currently connected devices
+- Connection sessions
+- Disconnections
+- Unique devices found
+- RSSI updates
+- Authentication failures
+- Pairing requests
+- Threats detected
+- Latest threat
+- Latest SOC incident
+- SOC status
+
+The dashboard refreshes continuously while Bluetooth traffic
+is being monitored.
+
+
+13. LOGGING AND REPORTING
+------------------------------------------------------------
+
+Locations:
+
+src/logger/
+src/json_logger/
+src/reports/
+src/statistics/
+
+The system supports:
+
+- CSV threat logging
+- JSON security logging
+- Threat reports
+- Final session statistics
+
+These components provide evidence for later investigation and
+project evaluation.
+
+
+14. MACHINE LEARNING DATA PIPELINE
+------------------------------------------------------------
+
+Location:
+
+src/ml/
+
+The ML module does not train directly on every raw btmon line.
+
+Instead, Bluetooth behavior is aggregated into fixed
+30-second feature windows for each valid Bluetooth device.
+
+Raw Bluetooth Events
+        |
+        v
+Group by Device MAC
+        |
+        v
+30-Second Window
+        |
+        v
+Behavioral Feature Extraction
+        |
+        v
+CSV ML Dataset
+
+
+15. ML FEATURES
+------------------------------------------------------------
+
+Current behavioral features include:
+
+- connections
+- disconnections
+- connection_failures
+- authentication_failures
+- pairing_requests
+- advertising_reports
+- rssi_updates
+- valid_rssi_samples
+- average RSSI
+- RSSI range
+- other events
+- total events
+- connection/disconnection ratio
+
+Invalid placeholder MAC addresses are filtered.
+
+Examples:
+
+Unknown
+00:00:00:00:00:00
+
+are not treated as valid device profiles.
+
+
+16. ML LABELING STRATEGY
+------------------------------------------------------------
+
+Collected behavioral windows are initially stored as:
+
+UNLABELED
+
+The system does not automatically assume that every captured
+window is NORMAL or ATTACK.
+
+Future labels can be created using:
+
+- controlled normal Bluetooth sessions
+- authorized security test scenarios
+- validated SOC decisions
+
+This helps reduce incorrect or circular ML training labels.
+
+
+17. FUTURE ML DETECTION FLOW
+------------------------------------------------------------
+
+The planned ML architecture is:
+
+Real Bluetooth Traffic
+        |
+        v
+Feature Extraction
+        |
+        v
+30-Second Behavioral Window
+        |
+        v
+Trained ML / Anomaly Model
+        |
+        v
+Anomaly Score
+        |
+        v
+Security Alert
+        |
+        v
+SOC Validation
+        |
+        v
+Approved Prevention
+
+The ML component complements the existing signature-based
+detection system rather than replacing SOC validation.
+
+
+18. COMPLETE SECURITY PIPELINE
+------------------------------------------------------------
+
+Bluetooth Device
+      |
+      v
+Linux Bluetooth Controller
+      |
+      v
+btmon
+      |
+      v
+Packet Builder / Parser
+      |
+      v
+BluetoothEvent
+      |
+      +-------------------------------+
+      |                               |
+      v                               v
+Event Queue                    ML Feature Collector
+      |                               |
+      v                               v
+Pattern Detector               Behavioral Dataset
+      |
+      v
+Signature Match
+      |
+      v
+Security Alert
+      |
+      v
+Logging + Reporting
+      |
+      v
+SOC Incident
+      |
+      v
+Pending SOC Review
+      |
+      v
+SOC Decision
+      |
+      +--> Monitoring
+      |
+      +--> Rejected / False Positive
+      |
+      +--> Approved
+              |
+              v
+       Prevention Engine
+              |
+              v
+      Authorization Check
+              |
+              v
+     Disconnect + Block
+     Authorized Test Device
+
+
+19. TECHNOLOGIES USED
+------------------------------------------------------------
+
+Programming Language:
+- Rust
+
+Runtime:
+- Tokio asynchronous runtime
+
+Operating System:
+- Kali Linux / Linux
+
+Bluetooth Monitoring:
+- BlueZ
+- btmon
+- bluetoothctl
+
+Data Processing:
+- Rust collections
+- Time-window event processing
+
+Logging:
+- CSV
+- JSON
+- Text reports
+
+Machine Learning Preparation:
+- Behavioral feature engineering
+- Per-device time-window datasets
+
+
+20. SECURITY DESIGN PRINCIPLE
+------------------------------------------------------------
+
+The core security principle of the project is:
+
+        DETECT -> VALIDATE -> RESPOND
+
+rather than:
+
+        DETECT -> IMMEDIATELY BLOCK
+
+This architecture reduces the possibility of blocking
+legitimate Bluetooth devices because of normal connection
+instability or temporary abnormal behavior.
+
+
+============================================================
+END OF ARCHITECTURE
+============================================================
