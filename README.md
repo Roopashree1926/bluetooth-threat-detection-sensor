@@ -1,3 +1,29 @@
+<p align="center">
+  <img src="banner.png" alt="Bluetooth Threat Detection Sensor Banner" width="100%">
+</p>
+
+<h1 align="center">🛡️ Bluetooth Threat Detection Sensor</h1>
+
+<p align="center">
+Real-Time Bluetooth Intrusion Detection & Response System (IDRS)
+</p>
+
+<p align="center">
+
+![Rust](https://img.shields.io/badge/Rust-Language-orange)
+![Linux](https://img.shields.io/badge/Linux-Kali-blue)
+![BlueZ](https://img.shields.io/badge/Bluetooth-BlueZ-success)
+![SOC](https://img.shields.io/badge/SOC-Incident%20Management-red)
+![ML](https://img.shields.io/badge/Machine%20Learning-Ready-purple)
+![License](https://img.shields.io/badge/License-MIT-green)
+
+</p>
+
+---
+
+
+
+
 # Bluetooth Threat Detection Sensor
 
 A **real-time Bluetooth Intrusion Detection and Response System (IDRS)** developed in **Rust** for monitoring Bluetooth traffic, detecting suspicious behavior using signature-based detection, generating Security Operations Center (SOC) incidents, and supporting controlled device containment.
